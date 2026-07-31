@@ -1,0 +1,2283 @@
+{
+  "name": "Ecosistema Triage de Soporte IA (Airtable + Claude + Gmail/Slack)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Ecosistema de Automatizacion IA — Triage de Soporte con memoria (Airtable) y HITL\n\n**Stack:** n8n · Airtable (memoria) · Anthropic Claude (AI Agent) · Gmail + Slack (salida) · HITL en Slack.\n\n**Antes de ejecutar:**\n1. Cargá credenciales: Gmail, Airtable, Anthropic (Claude), Slack.\n2. En cada nodo Airtable seleccioná tu Base y Tabla (los IDs `appXXXX/tblXXXX` son placeholders).\n3. Ajustá el canal de Slack y el messageId de Gmail si tu trigger devuelve otros campos.\n\n**Probar sin Gmail:** usá el `Trigger Manual` + `Email de ejemplo` (recorre todo el flujo). El nodo Claude igual necesita API key.",
+        "height": 320,
+        "width": 480,
+        "color": 4
+      },
+      "id": "f65a60de-e7f5-440c-90d8-34bca677e716",
+      "name": "NOTA · Instrucciones",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -2416,
+        32
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "d11d7016-42d1-46c5-a7bf-3becd58b5b50",
+      "name": "Trigger Manual (para probar)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -2400,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "e1",
+              "name": "from",
+              "value": "ana.cliente@example.com",
+              "type": "string"
+            },
+            {
+              "id": "e2",
+              "name": "subject",
+              "value": "El producto llego roto, quiero mi reembolso",
+              "type": "string"
+            },
+            {
+              "id": "e3",
+              "name": "body",
+              "value": "Hola, el producto llego roto y no funciona. Estoy muy molesta y quiero un reembolso de mi dinero.",
+              "type": "string"
+            },
+            {
+              "id": "e4",
+              "name": "messageId",
+              "value": "TEST-0001",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "80107df9-d2c3-4d5e-997c-b39c158d9426",
+      "name": "Email de ejemplo (para probar)",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -2160,
+        608
+      ]
+    },
+    {
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
+        "filters": {}
+      },
+      "id": "9b14ce7c-e87d-4129-8af8-c2fbab268752",
+      "name": "1. Trigger: Nuevo email a soporte@ (Gmail)",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -2160,
+        384
+      ],
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "n1",
+              "name": "from",
+              "value": "={{ $json.from || $json.From || $json.headers?.from }}",
+              "type": "string"
+            },
+            {
+              "id": "n2",
+              "name": "subject",
+              "value": "={{ $json.subject || $json.Subject || 'Sin asunto' }}",
+              "type": "string"
+            },
+            {
+              "id": "n3",
+              "name": "body",
+              "value": "={{ $json.body || $json.text || $json.snippet || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "n4",
+              "name": "messageId",
+              "value": "={{ $json.messageId || $json.id || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "7abc4e74-fb61-4c07-8d43-24ee8d0bdf81",
+      "name": "Normalizar datos del email",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -1920,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "f1",
+              "leftValue": "={{ $json.from }}",
+              "rightValue": "soporte@tuempresa.com",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            },
+            {
+              "id": "f2",
+              "leftValue": "={{ $json.subject }}",
+              "rightValue": "[AUTO]",
+              "operator": {
+                "type": "string",
+                "operation": "notContains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "d38d2ed6-5e6a-4950-b956-4d0601f9a8fa",
+      "name": "Filtro anti-bucle (evita loops)",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        -1680,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblOqFkPsy6hGZSwD",
+          "mode": "list",
+          "cachedResultName": "Clientes",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tblOqFkPsy6hGZSwD"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $json.from }}"
+          },
+          "matchingColumns": [
+            "Email"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Nombre",
+              "displayName": "Nombre",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Tickets",
+              "displayName": "Tickets",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "11bf5a90-b02b-46a3-8fd5-dc2ca1abe91d",
+      "name": "2a. Upsert Cliente (Airtable)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -1440,
+        480
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblm8AI9DD38XdtkM",
+          "mode": "list",
+          "cachedResultName": "Tickets",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tblm8AI9DD38XdtkM"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Email": "={{ $('Normalizar datos del email').item.json.from }}",
+            "Asunto": "={{ $('Normalizar datos del email').item.json.subject }}",
+            "Cuerpo": "=\t{{ $('Normalizar datos del email').item.json.body }}",
+            "Estado": "Pendiente"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Asunto",
+              "displayName": "Asunto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Cuerpo",
+              "displayName": "Cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sentimiento",
+              "displayName": "Sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Positivo",
+                  "value": "Positivo"
+                },
+                {
+                  "name": "Neutral",
+                  "value": "Neutral"
+                },
+                {
+                  "name": "Negativo",
+                  "value": "Negativo"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Ruta",
+              "displayName": "Ruta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Atención",
+                  "value": "Atención"
+                },
+                {
+                  "name": "Reclamo",
+                  "value": "Reclamo"
+                },
+                {
+                  "name": "Reembolso",
+                  "value": "Reembolso"
+                },
+                {
+                  "name": "Consulta",
+                  "value": "Consulta"
+                },
+                {
+                  "name": "Derivar",
+                  "value": "Derivar"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Respuesta_IA",
+              "displayName": "Respuesta_IA",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "Nuevo",
+                  "value": "Nuevo"
+                },
+                {
+                  "name": "En revisión",
+                  "value": "En revisión"
+                },
+                {
+                  "name": "Pendiente de aprobación",
+                  "value": "Pendiente de aprobación"
+                },
+                {
+                  "name": "Completado",
+                  "value": "Completado"
+                },
+                {
+                  "name": "Cerrado",
+                  "value": "Cerrado"
+                },
+                {
+                  "name": "Reembolsado",
+                  "value": "Reembolsado"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Aprobado_por",
+              "displayName": "Aprobado_por",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "5a2b8203-f731-421d-b86c-a93b28d97ecd",
+      "name": "2b. Crear Ticket en Airtable (Pendiente)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -1200,
+        480
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Clasifica este correo de soporte.\nAsunto: {{ $('Normalizar datos del email').item.json.subject }}\nMensaje: {{ $('Normalizar datos del email').item.json.body }}",
+        "options": {
+          "systemMessage": "Sos un agente de atencion al cliente de un e-commerce. Analiza el sentimiento y la intencion del correo. Responde EXCLUSIVAMENTE con un objeto JSON valido, sin texto extra, con este formato: {\"Sentimiento\":\"negativo|neutral|positivo\",\"Ruta\":\"reembolso|cupon|general\",\"Respuesta\":\"texto breve y empatico para responder al cliente\"}. Usa ruta 'reembolso' solo si el cliente esta molesto y pide devolucion de dinero; 'cupon' si el mensaje es positivo o de agradecimiento; 'general' para el resto."
+        }
+      },
+      "id": "5be63d15-ea8a-4dc0-9393-71fc441c41f3",
+      "name": "3. Motor IA: Clasificar con Claude (AI Agent)",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -1024,
+        480
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Mapea la respuesta del Agent (Message.Content) a campos utilizables.\nlet out = $json.output;\nlet parsed;\ntry {\n  const raw = typeof out === 'string' ? (out.match(/\\{[\\s\\S]*\\}/)?.[0] ?? out) : out;\n  parsed = typeof raw === 'string' ? JSON.parse(raw) : (raw || {});\n} catch (e) {\n  parsed = {};\n}\n// normaliza las claves a minuscula (tolera Sentimiento/sentimiento, Respuesta/respuesta, etc.)\nconst low = {};\nfor (const k in parsed) { low[k.toLowerCase()] = parsed[k]; }\n\nconst sentimiento = String(low.sentimiento || 'neutral').toLowerCase().trim();\nconst ruta = String(low.ruta || 'general').toLowerCase().trim();\nconst respuesta_ia = low.respuesta || low.respuesta_ia || low.mensaje || '';\n\nreturn [{ json: { ...$json, sentimiento, ruta, respuesta_ia } }];"
+      },
+      "id": "c6dfd628-cf16-4008-95f6-ba84d85a9d7b",
+      "name": "4. Parsear respuesta IA (JSON)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -720,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblm8AI9DD38XdtkM",
+          "mode": "list",
+          "cachedResultName": "Tickets",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tblm8AI9DD38XdtkM"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Sentimiento": "={{ $json.sentimiento.trim() }}",
+            "Respuesta_IA": "={{ $json.respuesta_ia }}",
+            "Estado": "Procesado por IA",
+            "id": "={{ $('2b. Crear Ticket en Airtable (Pendiente)').first().json.id }}",
+            "Ruta": "={{ $json.ruta.trim() }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Asunto",
+              "displayName": "Asunto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Cuerpo",
+              "displayName": "Cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sentimiento",
+              "displayName": "Sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "negativo",
+                  "value": "negativo"
+                },
+                {
+                  "name": "neutral",
+                  "value": "neutral"
+                },
+                {
+                  "name": "positivo",
+                  "value": "positivo"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Ruta",
+              "displayName": "Ruta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "reembolso",
+                  "value": "reembolso"
+                },
+                {
+                  "name": "cupon",
+                  "value": "cupon"
+                },
+                {
+                  "name": "general",
+                  "value": "general"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Respuesta_IA",
+              "displayName": "Respuesta_IA",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Aprobado_por",
+              "displayName": "Aprobado_por",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "77fcc64e-15e9-4c31-9ed9-f469475088fa",
+      "name": "5. Actualizar Ticket (Procesado por IA)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -480,
+        480
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "s1",
+                    "leftValue": "={{ $json.fields.Ruta }}",
+                    "rightValue": "reembolso",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Reembolso (critico)"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "s2",
+                    "leftValue": "={{ $json.fields.Ruta }}",
+                    "rightValue": "cupon",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Cupon"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "id": "s3",
+                    "leftValue": "={{ $json.fields.Ruta }}",
+                    "rightValue": "general",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "General"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "a9cdcdd3-a2df-4307-a2fb-d3d8ea9b893e",
+      "name": "6. Switch: Enrutar por decision IA",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        -240,
+        480
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "if1",
+              "leftValue": "={{ $json.data.approved }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "50dfc1b3-7d6b-4113-9ad6-a05d79c9a5fc",
+      "name": "IF: Aprobado por humano?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        272,
+        272
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "7630985b-42dd-4dca-9638-fbb7d5cb909a",
+      "name": "Procesar reembolso (Stripe API)",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        512,
+        160
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Normalizar datos del email').item.json.messageId }}",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden\">\n  <div style=\"background:#1d4ed8;color:#ffffff;padding:16px 20px;font-size:18px;font-weight:bold\">Solicitud de aprobación de reembolso</div>\n  <div>\n    <p style=\"padding:20px;color:#0f172a;font-size:14px;line-height:1.6\">Hola, tu reembolso fue aprobado y lo estamos procesando. {{ $('4. Parsear respuesta IA (JSON)').item.json.respuesta_ia }}</p>\n\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "8806d51f-46e3-4ea9-928c-64a0133d7655",
+      "name": "Gmail: confirmar reembolso al cliente",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        752,
+        160
+      ],
+      "webhookId": "6c63e58a-769c-41e7-baa2-20dd367a1df8",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblm8AI9DD38XdtkM",
+          "mode": "list",
+          "cachedResultName": "Tickets",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tblm8AI9DD38XdtkM"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('2b. Crear Ticket en Airtable (Pendiente)').item.json.id }}",
+            "Estado": "Resuelto",
+            "Aprobado_por": "Humano"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Asunto",
+              "displayName": "Asunto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Cuerpo",
+              "displayName": "Cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sentimiento",
+              "displayName": "Sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "positivo",
+                  "value": "positivo"
+                },
+                {
+                  "name": "neutral",
+                  "value": "neutral"
+                },
+                {
+                  "name": "negativo",
+                  "value": "negativo"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Ruta",
+              "displayName": "Ruta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "atención",
+                  "value": "atención"
+                },
+                {
+                  "name": "reclamo",
+                  "value": "reclamo"
+                },
+                {
+                  "name": "reembolso",
+                  "value": "reembolso"
+                },
+                {
+                  "name": "consulta",
+                  "value": "consulta"
+                },
+                {
+                  "name": "derivar",
+                  "value": "derivar"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Respuesta_IA",
+              "displayName": "Respuesta_IA",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Aprobado_por",
+              "displayName": "Aprobado_por",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "2ed32629-5490-4341-9df5-4de3ab888223",
+      "name": "Actualizar Ticket (Aprobado -> Resuelto)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        992,
+        160
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblm8AI9DD38XdtkM",
+          "mode": "list",
+          "cachedResultName": "Tickets",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tblm8AI9DD38XdtkM"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('2b. Crear Ticket en Airtable (Pendiente)').item.json.id }}",
+            "Estado": "Rechazado por humano"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Asunto",
+              "displayName": "Asunto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Cuerpo",
+              "displayName": "Cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sentimiento",
+              "displayName": "Sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "positivo",
+                  "value": "positivo"
+                },
+                {
+                  "name": "neutral",
+                  "value": "neutral"
+                },
+                {
+                  "name": "negativo",
+                  "value": "negativo"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Ruta",
+              "displayName": "Ruta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "atención",
+                  "value": "atención"
+                },
+                {
+                  "name": "reclamo",
+                  "value": "reclamo"
+                },
+                {
+                  "name": "reembolso",
+                  "value": "reembolso"
+                },
+                {
+                  "name": "consulta",
+                  "value": "consulta"
+                },
+                {
+                  "name": "derivar",
+                  "value": "derivar"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Respuesta_IA",
+              "displayName": "Respuesta_IA",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Aprobado_por",
+              "displayName": "Aprobado_por",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "b2b33f5c-7f07-43fd-8eaa-149802fa59e4",
+      "name": "Actualizar Ticket (Rechazado por humano)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        720,
+        400
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Normalizar datos del email').item.json.messageId }}",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden\">\n  <div style=\"background:#1d4ed8;color:#ffffff;padding:16px 20px;font-size:18px;font-weight:bold\">Solicitud de aprobación de reembolso</div>\n  <div>\n    <p style=\"padding:20px;color:#0f172a;font-size:14px;line-height:1.6\">Hola, revisamos tu caso. Por el momento no podemos procesar el reembolso, pero te ofrecemos una alternativa. Un agente se contactara a la brevedad.</p>\n\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "16333628-b3cc-4e44-a5bd-82919d3ec82e",
+      "name": "Gmail: respuesta alternativa (rechazo)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        960,
+        400
+      ],
+      "webhookId": "291cc6b6-8454-4eb8-be96-ce6db6db3849",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Normalizar datos del email').item.json.messageId }}",
+        "message": "=<div style=\"margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif\">\n  <div style=\"max-width:520px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06)\">\n    <div style=\"background:#1d4ed8;padding:22px 28px\">\n      <div style=\"color:#ffffff;font-size:20px;font-weight:bold\">Atención al Cliente</div>\n      <div style=\"color:#c7d2fe;font-size:13px;margin-top:2px\">Seguimiento de tu solicitud</div>\n    </div>\n    <div style=\"padding:28px;color:#0f172a;font-size:15px;line-height:1.65\">\n     Gracias por tu mensaje. Como agradecimiento te dejamos un cupón de descuento: GRACIAS10. {{ $('4. Parsear respuesta IA (JSON)').item.json.respuesta_ia }}\n    </div>\n    <div style=\"background:#f8fafc;padding:16px 28px;color:#94a3b8;font-size:12px;text-align:center;border-top:1px solid #e2e8f0\">\n      Este es un mensaje de seguimiento de tu solicitud de soporte.\n    </div>\n  </div>\n</div>\n",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "51820c9e-3617-414e-9039-0ab2b2495d3e",
+      "name": "Gmail: enviar cupon de descuento",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        240,
+        528
+      ],
+      "webhookId": "5c554373-2823-4f84-9744-0aeb09f6c6d5",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblm8AI9DD38XdtkM",
+          "mode": "list",
+          "cachedResultName": "Tickets",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tblm8AI9DD38XdtkM"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('2b. Crear Ticket en Airtable (Pendiente)').item.json.id }}",
+            "Estado": "Resuelto"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Asunto",
+              "displayName": "Asunto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Cuerpo",
+              "displayName": "Cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sentimiento",
+              "displayName": "Sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "positivo",
+                  "value": "positivo"
+                },
+                {
+                  "name": "neutral",
+                  "value": "neutral"
+                },
+                {
+                  "name": "negativo",
+                  "value": "negativo"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Ruta",
+              "displayName": "Ruta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "atención",
+                  "value": "atención"
+                },
+                {
+                  "name": "reclamo",
+                  "value": "reclamo"
+                },
+                {
+                  "name": "reembolso",
+                  "value": "reembolso"
+                },
+                {
+                  "name": "consulta",
+                  "value": "consulta"
+                },
+                {
+                  "name": "derivar",
+                  "value": "derivar"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Respuesta_IA",
+              "displayName": "Respuesta_IA",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Aprobado_por",
+              "displayName": "Aprobado_por",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "d942f41f-617b-4ae7-b6d9-37bc8748249a",
+      "name": "Actualizar Ticket (Resuelto - cupon)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        480,
+        528
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "reply",
+        "messageId": "={{ $('Normalizar datos del email').item.json.messageId }}",
+        "message": "=\n\n\n<div style=\"margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif\">\n  <div style=\"max-width:520px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06)\">\n    <div style=\"background:#1d4ed8;padding:22px 28px\">\n      <div style=\"color:#ffffff;font-size:20px;font-weight:bold\">Atención al Cliente</div>\n      <div style=\"color:#c7d2fe;font-size:13px;margin-top:2px\">Seguimiento de tu solicitud</div>\n    </div>\n    <div style=\"padding:28px;color:#0f172a;font-size:15px;line-height:1.65\">\n      Hola, gracias por escribirnos. {{ $('4. Parsear respuesta IA (JSON)').item.json.respuesta_ia }} Un agente revisará tu consulta..\n    </div>\n    <div style=\"background:#f8fafc;padding:16px 28px;color:#94a3b8;font-size:12px;text-align:center;border-top:1px solid #e2e8f0\">\n      Este es un mensaje de seguimiento de tu solicitud de soporte.\n    </div>\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "id": "32b3fa88-4558-4c6f-9d49-ce264c120ac5",
+      "name": "Gmail: responder consulta general",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        32,
+        752
+      ],
+      "webhookId": "9551bc8c-1f3d-491f-9065-26cfb2628aa2",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tblm8AI9DD38XdtkM",
+          "mode": "list",
+          "cachedResultName": "Tickets",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tblm8AI9DD38XdtkM"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "id": "={{ $('2b. Crear Ticket en Airtable (Pendiente)').item.json.id }}",
+            "Estado": "Escalado"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": false
+            },
+            {
+              "id": "Asunto",
+              "displayName": "Asunto",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Email",
+              "displayName": "Email",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Cuerpo",
+              "displayName": "Cuerpo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Sentimiento",
+              "displayName": "Sentimiento",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "positivo",
+                  "value": "positivo"
+                },
+                {
+                  "name": "neutral",
+                  "value": "neutral"
+                },
+                {
+                  "name": "negativo",
+                  "value": "negativo"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Ruta",
+              "displayName": "Ruta",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "options",
+              "options": [
+                {
+                  "name": "atención",
+                  "value": "atención"
+                },
+                {
+                  "name": "reclamo",
+                  "value": "reclamo"
+                },
+                {
+                  "name": "reembolso",
+                  "value": "reembolso"
+                },
+                {
+                  "name": "consulta",
+                  "value": "consulta"
+                },
+                {
+                  "name": "derivar",
+                  "value": "derivar"
+                }
+              ],
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Respuesta_IA",
+              "displayName": "Respuesta_IA",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Aprobado_por",
+              "displayName": "Aprobado_por",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            },
+            {
+              "id": "Cliente",
+              "displayName": "Cliente",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "array",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Estado",
+              "displayName": "Estado",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "23d3052f-26e1-4319-a309-951b10603d6b",
+      "name": "Actualizar Ticket (Escalado)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        512,
+        752
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "base": {
+          "__rl": true,
+          "value": "app2DaThVnaj6LYbx",
+          "mode": "list",
+          "cachedResultName": "Soporte IA",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx"
+        },
+        "table": {
+          "__rl": true,
+          "value": "tbl6ivhpbleGZC7dd",
+          "mode": "list",
+          "cachedResultName": "Errores",
+          "cachedResultUrl": "https://airtable.com/app2DaThVnaj6LYbx/tbl6ivhpbleGZC7dd"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Nodo",
+              "displayName": "Nodo",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Mensaje",
+              "displayName": "Mensaje",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Payload",
+              "displayName": "Payload",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": false,
+              "removed": false
+            },
+            {
+              "id": "Fecha",
+              "displayName": "Fecha",
+              "required": false,
+              "defaultMatch": false,
+              "canBeUsedToMatch": true,
+              "display": true,
+              "type": "string",
+              "readOnly": true,
+              "removed": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "bfa1e8ea-d96d-437f-a1bd-e073f9eba97a",
+      "name": "Registrar Error en Airtable (Errores)",
+      "type": "n8n-nodes-base.airtable",
+      "typeVersion": 2.1,
+      "position": [
+        -720,
+        784
+      ],
+      "credentials": {
+        "airtableTokenApi": {
+          "id": "IlBRqT0MRtP5ws67",
+          "name": "Airtable Personal Access Token account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "### Human-in-the-loop (HITL)\nEl nodo 'Gmail Send & Wait' PAUSA el flujo hasta que un humano aprueba o rechaza el reembolso (accion critica = mover dinero). Recien despues se ejecuta el reembolso y se responde al cliente.",
+        "height": 200,
+        "width": 340,
+        "color": 3
+      },
+      "id": "50fc1f17-eccb-4850-9649-3ddfc57201b5",
+      "name": "NOTA · HITL",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "content": "### Resiliencia / manejo de errores\nEl nodo Claude tiene 'On Error: Continue (error output)': si la API de IA falla, el flujo NO se rompe, registra el error en Airtable (tabla Errores) y avisa en Gmail. Ademas hay un Error Trigger global para cualquier fallo no controlado.",
+        "height": 200,
+        "width": 380,
+        "color": 2
+      },
+      "id": "e7138909-87aa-47dd-9bd2-f6be6425573c",
+      "name": "NOTA · Errores",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        992
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "sendAndWait",
+        "sendTo": "bermudezdamian7@gmail.com",
+        "subject": "Aprobación de reembolso",
+        "message": "=<div style=\"font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden\">\n  <div style=\"background:#1d4ed8;color:#ffffff;padding:16px 20px;font-size:18px;font-weight:bold\">Solicitud de aprobación de reembolso</div>\n  <div style=\"padding:20px;color:#0f172a;font-size:14px;line-height:1.6\">\n    <p>Un ticket de soporte requiere tu aprobación antes de procesar el reembolso.</p>\n    <table style=\"width:100%;border-collapse:collapse\">\n      <tr><td style=\"padding:6px 0;color:#64748b\">Cliente</td><td style=\"padding:6px 0;font-weight:bold\">{{ $('Normalizar datos del email').item.json.from }}</td></tr>\n      <tr><td style=\"padding:6px 0;color:#64748b\">Asunto</td><td style=\"padding:6px 0;font-weight:bold\">{{ $('Normalizar datos del email').item.json.subject }}</td></tr>\n      <tr><td style=\"padding:6px 0;color:#64748b\">Sentimiento</td><td style=\"padding:6px 0\">{{ $('4. Parsear respuesta IA (JSON)').item.json.sentimiento }}</td></tr>\n    </table>\n    <div style=\"background:#f1f5f9;border-radius:8px;padding:12px;margin-top:12px\">\n      <div style=\"color:#64748b;font-size:12px;margin-bottom:4px\">Respuesta sugerida por la IA</div>\n      <div>{{ $('4. Parsear respuesta IA (JSON)').item.json.respuesta_ia }}</div>\n    </div>\n    <p style=\"margin-top:16px;color:#64748b;font-size:13px\">Revisá el caso y elegí una opción con los botones de abajo.</p>\n  </div>\n</div>",
+        "approvalOptions": {
+          "values": {
+            "approvalType": "double",
+            "approveLabel": "Aprobar reembolso",
+            "disapproveLabel": "Rechazar"
+          }
+        },
+        "options": {
+          "limitWaitTime": {
+            "values": {
+              "resumeAmount": 2,
+              "resumeUnit": "days"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        96,
+        288
+      ],
+      "id": "6d86753c-415e-464d-b25d-cb08ba72b251",
+      "name": "Send message and wait for response",
+      "webhookId": "233e9bb4-e260-4bdc-84a0-5c62ae7ac661",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "bermudezdamian7@gmail.com",
+        "subject": "Nuevo ticket escalado",
+        "message": "=<div style=\"margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif\">\n  <div style=\"max-width:520px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06)\">\n    <div style=\"background:#0284c7;padding:22px 28px\">\n      <div style=\"color:#ffffff;font-size:20px;font-weight:bold\">Atención al Cliente</div>\n      <div style=\"color:#bae6fd;font-size:13px;margin-top:2px\">Recibimos tu consulta</div>\n    </div>\n    <div style=\"padding:28px;color:#0f172a;font-size:15px;line-height:1.65\">\n      <p style=\"margin:0 0 14px\">Hola,</p>\n      <p style=\"margin:0 0 14px\">Gracias por escribirnos. Ya recibimos tu mensaje y lo estamos revisando.</p>\n      <div style=\"background:#f0f9ff;border-left:4px solid #0284c7;border-radius:8px;padding:14px 16px;margin:18px 0;color:#0c4a6e;font-size:14px\">\n        {{ $('4. Parsear respuesta IA (JSON)').first().json.respuesta_ia }}\n      </div>\n      <p style=\"margin:0 0 14px\">Un agente de nuestro equipo revisará tu consulta y se pondrá en contacto con vos a la brevedad.</p>\n      <p style=\"margin:18px 0 0;color:#64748b;font-size:14px\">Equipo de Soporte</p>\n    </div>\n    <div style=\"background:#f8fafc;padding:16px 28px;color:#94a3b8;font-size:12px;text-align:center;border-top:1px solid #e2e8f0\">\n      Este es un mensaje automático de seguimiento de tu consulta.\n    </div>\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        240,
+        752
+      ],
+      "id": "566154d9-9c4d-4af9-beb0-4b085a17c9b5",
+      "name": "Send a message",
+      "webhookId": "3d429498-5afc-4563-afed-abb335939029",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "bermudezdamian7@gmail.com",
+        "subject": "Error",
+        "message": "=<div style=\"margin:0;padding:24px;background:#f1f5f9;font-family:Arial,Helvetica,sans-serif\">\n  <div style=\"max-width:520px;margin:0 auto;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(0,0,0,0.06)\">\n    <div style=\"background:#1d4ed8;padding:22px 28px\">\n      <div style=\"color:#ffffff;font-size:20px;font-weight:bold\">Atención al Cliente</div>\n      <div style=\"color:#c7d2fe;font-size:13px;margin-top:2px\">Seguimiento de tu solicitud</div>\n    </div>\n    <div style=\"padding:28px;color:#0f172a;font-size:15px;line-height:1.65\">\n      <p style=\"margin:0 0 14px\">Hola,</p>\n      <p style=\"margin:0 0 14px\">Revisamos tu caso con atención. Por el momento <strong>no podemos procesar el reembolso</strong>, pero no queremos dejarte sin una solución.</p>\n      <div style=\"background:#eff6ff;border-left:4px solid #1d4ed8;border-radius:8px;padding:14px 16px;margin:18px 0;color:#1e3a8a;font-size:14px\">\n        Te ofrecemos una <strong>alternativa</strong> y un agente de nuestro equipo se pondrá en contacto con vos a la brevedad.\n      </div>\n      <p style=\"margin:0 0 6px\">Gracias por tu paciencia y por confiar en nosotros.</p>\n      <p style=\"margin:18px 0 0;color:#64748b;font-size:14px\">Equipo de Soporte</p>\n    </div>\n    <div style=\"background:#f8fafc;padding:16px 28px;color:#94a3b8;font-size:12px;text-align:center;border-top:1px solid #e2e8f0\">\n      Este es un mensaje de seguimiento de tu solicitud de soporte.\n    </div>\n  </div>\n</div>",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.2,
+      "position": [
+        -512,
+        784
+      ],
+      "id": "a95aafa4-71e5-4fd5-a482-25f49a57e8eb",
+      "name": "Send a message1",
+      "webhookId": "2cecdf04-a967-423c-ae88-bedb574e8045",
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "3XaRdNl6eLbkKjej",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "claude-haiku-4-5-20251001",
+          "mode": "list",
+          "cachedResultName": "Claude Haiku 4.5"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatAnthropic",
+      "typeVersion": 1.5,
+      "position": [
+        -1024,
+        688
+      ],
+      "id": "09552a3f-53f6-4ad3-9a5d-e091a69a8055",
+      "name": "Claude 3.5 (Chat Model)",
+      "credentials": {
+        "anthropicApi": {
+          "id": "k9Vxwt6cvLSCnLi2",
+          "name": "Anthropic account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Trigger Manual (para probar)": {
+      "main": [
+        [
+          {
+            "node": "Email de ejemplo (para probar)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Email de ejemplo (para probar)": {
+      "main": [
+        [
+          {
+            "node": "Normalizar datos del email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "1. Trigger: Nuevo email a soporte@ (Gmail)": {
+      "main": [
+        [
+          {
+            "node": "Normalizar datos del email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalizar datos del email": {
+      "main": [
+        [
+          {
+            "node": "Filtro anti-bucle (evita loops)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filtro anti-bucle (evita loops)": {
+      "main": [
+        [
+          {
+            "node": "2a. Upsert Cliente (Airtable)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2a. Upsert Cliente (Airtable)": {
+      "main": [
+        [
+          {
+            "node": "2b. Crear Ticket en Airtable (Pendiente)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2b. Crear Ticket en Airtable (Pendiente)": {
+      "main": [
+        [
+          {
+            "node": "3. Motor IA: Clasificar con Claude (AI Agent)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Motor IA: Clasificar con Claude (AI Agent)": {
+      "main": [
+        [
+          {
+            "node": "4. Parsear respuesta IA (JSON)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Registrar Error en Airtable (Errores)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Parsear respuesta IA (JSON)": {
+      "main": [
+        [
+          {
+            "node": "5. Actualizar Ticket (Procesado por IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Actualizar Ticket (Procesado por IA)": {
+      "main": [
+        [
+          {
+            "node": "6. Switch: Enrutar por decision IA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Switch: Enrutar por decision IA": {
+      "main": [
+        [
+          {
+            "node": "Send message and wait for response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: enviar cupon de descuento",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Gmail: responder consulta general",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "IF: Aprobado por humano?": {
+      "main": [
+        [
+          {
+            "node": "Procesar reembolso (Stripe API)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Actualizar Ticket (Rechazado por humano)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Procesar reembolso (Stripe API)": {
+      "main": [
+        [
+          {
+            "node": "Gmail: confirmar reembolso al cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: confirmar reembolso al cliente": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Ticket (Aprobado -> Resuelto)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Ticket (Rechazado por humano)": {
+      "main": [
+        [
+          {
+            "node": "Gmail: respuesta alternativa (rechazo)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: enviar cupon de descuento": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Ticket (Resuelto - cupon)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gmail: responder consulta general": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Registrar Error en Airtable (Errores)": {
+      "main": [
+        [
+          {
+            "node": "Send a message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send message and wait for response": {
+      "main": [
+        [
+          {
+            "node": "IF: Aprobado por humano?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a message": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Ticket (Escalado)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Claude 3.5 (Chat Model)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "3. Motor IA: Clasificar con Claude (AI Agent)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "f60befa0-f46d-4d7d-b48c-4e979e81bdb2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "c47950b491e2730ad484b26307d0480e922ebda6a3648d9719b9a55bad3937ae"
+  },
+  "nodeGroups": [],
+  "id": "HJXAkhTsxGtstdef",
+  "tags": []
+}
