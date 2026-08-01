@@ -25,19 +25,27 @@ Cuando llega un correo a la casilla de soporte, el sistema interpreta el lenguaj
 | Human-in-the-loop | **Gmail** (Send and Wait / aprobación con botones) |
 
 ## 3. Estructura del repositorio
+
+```
 /
-├── README.md <- este archivo
-├── 1_Diagrama_Arquitectura.pdf <- diagrama de arquitectura (entregable obligatorio)
+├── README.md                          <- este archivo
+├── 1_Diagrama_Arquitectura.pdf        <- diagrama de arquitectura (entregable obligatorio)
 ├── Ecosistema_Triage_Soporte_n8n.json <- flujo de n8n exportado
-├── /screenshots <- evidencias del flujo y las pruebas
-│ ├── 01_flujo_completo.png
-│ ├── 02_ejecucion_ok.png
-│ ├── 03_hitl_email_aprobacion.png
-│ ├── 04_airtable_estados.png
-│ ├── 05_camino_infeliz_error.png
-│ └── 06_tabla_errores.png
-└── /docs
-└── link_base_datos.md <- link en modo lectura a la base de Airtable
+├── /screenshots                       <- evidencias del flujo y las pruebas
+│   ├── 01_flujo_completo.png
+│   ├── 02_ejecucion_ok.png
+│   ├── 03_hitl_email_aprobacion.png
+│   ├── 04_airtable_estados.png
+│   ├── 05_camino_infeliz_error.png
+│   ├── 06_tabla_errores.png
+│   └── 07_dashboard_kpis.png
+├── /docs
+│   └── link_base_datos.md             <- link en modo lectura a la base de Airtable
+└── /mejoras                           <- documentación de mejoras
+    ├── Mejora_1_Comparativa_Modelos.pdf
+    ├── Mejora_2y3_Guia_Dashboard_Airtable.md
+    └── Mejora_4_API_Batches.pdf
+```
 
 ## 4. La base de datos (el "cerebro")
 
@@ -52,6 +60,7 @@ Base de Airtable **Soporte IA** con 3 tablas relacionadas.
 | Sentimiento | Single line text | lo completa la IA (negativo / neutral / positivo) |
 | Ruta | Single line text | lo completa la IA (reembolso / cupon / general) |
 | Respuesta_IA | Long text | texto sugerido por la IA |
+| Éxito | Formula | 1 si Estado es Resuelto/Escalado, 0 si no (para la tasa de éxito) |
 | **Estado** | Single select | **campo de estado (ver ciclo abajo)** |
 | Aprobado_por | Single line text | "Humano" cuando se aprueba un reembolso |
 | Cliente | **Link to `Clientes`** | **relación entre tablas** |
@@ -75,13 +84,23 @@ Base de Airtable **Soporte IA** con 3 tablas relacionadas.
 | Fecha | Created time |
 
 ### Ciclo de estados (campo `Estado`)
+```
 Pendiente → Procesado por IA → Esperando aprobación
-→ Aprobado por humano / Rechazado por humano
-→ Resuelto / Escalado
+   → Aprobado por humano / Rechazado por humano
+   → Resuelto / Escalado
+```
 Cumple el requisito de **campos de estado + relaciones entre tablas** para evitar datos aislados.
 
 ### Link en modo lectura
 En Airtable: `Share → Share base → "Anyone with the link can view"`. Pegá el link en `docs/link_base_datos.md` y verificalo en ventana de incógnito antes de entregar.
+
+### Dashboard de KPIs (Airtable Interfaces)
+Además de las tablas, el sistema tiene un **panel de control** construido en Airtable Interfaces que agrupa los indicadores clave:
+
+- **KPIs:** Total de tickets (volumen), Tasa de éxito (% de tickets Resueltos/Escalados sobre el total) y Tasa de errores (conteo de la tabla `Errores`).
+- **Visualizaciones:** tickets por Estado, tickets por Sentimiento, distribución por Estado (torta), errores por Nodo y evolución de tickets por fecha.
+
+> El link público de interfaces de Airtable requiere plan Team, por eso el dashboard se documenta con capturas (`screenshots/07_dashboard_kpis.png`) y la base queda accesible en modo lectura por el link de `docs/link_base_datos.md`.
 
 ## 5. El flujo en n8n (el "corazón")
 
@@ -132,16 +151,19 @@ Ejecutá cada caso, sacá screenshot de la ejecución y del cambio de estado en 
 2. **¿Comparás tipos de datos correctos?** Sí — el `Switch` compara texto (`ruta`), el `IF` del HITL compara **booleano** (`data.approved`).
 3. **¿Prompt de IA dinámico con variables del sistema?** Sí — usa `{{ asunto }}` y `{{ cuerpo }}` del correo normalizado, nada hardcodeado.
 
-## 8. Video demo (3 min) — guion sugerido
-1. Mostrá el **trigger** (llega el correo / ejecución).
-2. Mostrá el **procesamiento**: clasificación de Claude y escritura en Airtable.
-3. Mostrá el **HITL** por email (aprobar/rechazar) y el **resultado final** (respuesta al cliente + estado en Airtable).
-4. **Ocultá tus API Keys y credenciales** durante la grabación.
+## 8. Mejoras aplicadas
+
+Documentación adicional en la carpeta `/mejoras`:
+
+- **Comparativa de modelos + matriz de decisión** (`Mejora_1_Comparativa_Modelos.pdf`): justifica la elección de modelo (Haiku vs Sonnet vs Opus) por tipo de tarea, con precios 2026 e impacto financiero estimado por volumen.
+- **Guía de dashboard en Airtable** (`Mejora_2y3_Guia_Dashboard_Airtable.md`): paso a paso del panel de KPIs (volumen, tasa de éxito, tasa de errores) con gráficos y agregaciones.
+- **API de Batches y costos** (`Mejora_4_API_Batches.pdf`): uso del procesamiento por lotes asincrónico (Anthropic/OpenAI) y su impacto de ~50% en reducción de costos operativos.
 
 ## 9. Checklist de entregables
 - [ ] `1_Diagrama_Arquitectura.pdf`
 - [ ] `Ecosistema_Triage_Soporte_n8n.json` (exportado desde tu n8n)
 - [ ] Link a la base de Airtable en **modo lectura**
-- [ ] Screenshots de evidencia (flujo, ejecución, HITL, estados, camino infeliz, tabla Errores)
+- [ ] Screenshots de evidencia (flujo, ejecución, HITL, estados, camino infeliz, tabla Errores, dashboard)
 - [ ] Video demo (3 min, sin credenciales visibles)
+- [ ] Documentos de mejoras en `/mejoras`
 - [ ] Todo publicado en un repositorio público de GitHub
